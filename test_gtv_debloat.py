@@ -69,3 +69,29 @@ def test_ensure_connected_returns_serial_on_success():
 def test_ensure_connected_returns_none_on_failure():
     with patch.object(g, "run_adb", return_value=(1, "", "cannot connect")):
         assert g.ensure_connected("1.2.3.4") is None
+
+def test_main_unknown_pkg_aborts_without_yes(tmp_path):
+    cat = tmp_path / "packages.json"
+    cat.write_text('{"packages": []}')  # nothing catalogued -> selected pkg is "unknown"
+    inputs = iter(["0", "no"])  # select index 0, then decline the yes-gate
+    with patch.object(g, "adb_available", return_value=True), \
+         patch.object(g, "ensure_connected", return_value=None), \
+         patch.object(g, "list_packages", return_value=["com.some.app"]), \
+         patch.object(g, "disable_packages") as mock_disable, \
+         patch("builtins.input", lambda _="": next(inputs)):
+        rc = g.main(["--catalog", str(cat)])
+    assert rc == 0
+    mock_disable.assert_not_called()  # aborted, nothing disabled
+
+def test_main_unknown_pkg_proceeds_with_yes(tmp_path):
+    cat = tmp_path / "packages.json"
+    cat.write_text('{"packages": []}')
+    inputs = iter(["0", "yes"])
+    with patch.object(g, "adb_available", return_value=True), \
+         patch.object(g, "ensure_connected", return_value=None), \
+         patch.object(g, "list_packages", return_value=["com.some.app"]), \
+         patch.object(g, "disable_packages", return_value={"disabled": ["com.some.app"], "skipped": []}) as mock_disable, \
+         patch("builtins.input", lambda _="": next(inputs)):
+        rc = g.main(["--catalog", str(cat)])
+    assert rc == 0
+    mock_disable.assert_called_once()  # confirmed -> disable happened

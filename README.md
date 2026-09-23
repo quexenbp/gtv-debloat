@@ -44,9 +44,11 @@ python gtv_debloat.py --ip 192.168.1.42
 
 Replace `192.168.1.42` with your TV's actual IP address. The tool will:
 1. Connect to your TV via ADB over the network
-2. List all disableable packages (system bloatware, hidden from view)
+2. List all non-whitelisted installed packages—catalogued bloatware is labelled by risk level (safe/caution), uncatalogued packages are marked unknown (requiring confirmation to disable)
 3. Present an interactive menu to select and disable them
 4. Show a summary of disabled and skipped packages
+
+**Note:** If your TV is connected by USB, you can omit `--ip` and the tool will use the default attached device.
 
 ### Restore Disabled Apps
 

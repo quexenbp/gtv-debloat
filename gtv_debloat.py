@@ -61,7 +61,9 @@ def list_packages(serial=None, flag=None):
     args = ["shell", "pm", "list", "packages"]
     if flag:
         args.append(flag)
-    _, out, _ = run_adb(args, serial=serial)
+    rc, out, err = run_adb(args, serial=serial)
+    if rc != 0:
+        print(f"warning: adb read failed: {err.strip()}", file=sys.stderr)
     pkgs = {line.split("package:", 1)[1].strip()
             for line in out.splitlines()
             if line.startswith("package:")}
