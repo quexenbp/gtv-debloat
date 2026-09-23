@@ -1,5 +1,7 @@
+import argparse
 import json
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -84,3 +86,83 @@ def disable_packages(packages, serial=None):
 
 def enable_packages(packages, serial=None):
     return _apply("enable", packages, serial)
+
+def ensure_connected(ip=None):
+    if not ip:
+        return None
+    serial = f"{ip}:5555"
+    rc, out, _ = run_adb(["connect", serial])
+    return serial if rc == 0 and "connected" in out.lower() else None
+
+def parse_selection(raw, count):
+    idx = set()
+    for tok in raw.replace(",", " ").split():
+        try:
+            n = int(tok)
+        except ValueError:
+            continue
+        if 0 <= n < count:
+            idx.add(n)
+    return sorted(idx)
+
+def _print_menu(pkgs):
+    for i, p in enumerate(pkgs):
+        tag = p.risk.upper()
+        desc = p.description or "(uncatalogued — unknown, disable at your own risk)"
+        print(f"[{i}] {p.package}  <{tag}>  {desc}")
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Reversibly disable Google TV bloatware over ADB.")
+    parser.add_argument("--ip", help="TV IP for network ADB (adb connect IP:5555)")
+    parser.add_argument("--undo", action="store_true", help="re-enable currently disabled packages")
+    parser.add_argument("--catalog", default="packages.json", help="path to bloat catalog")
+    args = parser.parse_args(argv)
+
+    if not adb_available():
+        print("adb not found. Install Android platform-tools: "
+              "https://developer.android.com/tools/releases/platform-tools")
+        return 1
+
+    serial = ensure_connected(args.ip)
+    if args.ip and serial is None:
+        print("Could not connect. On the TV enable Developer options + "
+              "Network debugging (Settings > System > About > tap Build 7x, "
+              "then Settings > System > Developer options).")
+        return 1
+
+    if args.undo:
+        disabled = list_packages(serial=serial, flag="-d")
+        if not disabled:
+            print("No disabled packages to restore.")
+            return 0
+        for i, p in enumerate(disabled):
+            print(f"[{i}] {p}")
+        sel = parse_selection(input("Re-enable which? (numbers, blank=all): "),
+                              len(disabled))
+        targets = disabled if not sel else [disabled[i] for i in sel]
+        res = enable_packages(targets, serial=serial)
+        print(f"Re-enabled {len(res['disabled'])}, skipped {len(res['skipped'])}.")
+        return 0
+
+    catalog = load_catalog(args.catalog)
+    installed = list_packages(serial=serial)
+    pkgs = selectable_packages(installed, catalog)
+    _print_menu(pkgs)
+    sel = parse_selection(input("Disable which? (e.g. 0 2 5): "), len(pkgs))
+    if not sel:
+        print("Nothing selected.")
+        return 0
+    targets = [pkgs[i] for i in sel]
+    unknown = [p.package for p in targets if p.risk == "unknown"]
+    if unknown:
+        print("WARNING: uncatalogued packages selected:", ", ".join(unknown))
+        if input("Type 'yes' to proceed: ").strip().lower() != "yes":
+            print("Aborted.")
+            return 0
+    res = disable_packages([p.package for p in targets], serial=serial)
+    print(f"Disabled {len(res['disabled'])}, skipped {len(res['skipped'])}.")
+    print("Undo anytime: python gtv_debloat.py --undo" + (f" --ip {args.ip}" if args.ip else ""))
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -55,3 +55,17 @@ def test_disable_marks_failed_as_skipped():
         res = g.disable_packages(["com.x"])
     assert res["disabled"] == []
     assert res["skipped"] == ["com.x"]
+
+def test_parse_selection_handles_commas_spaces_and_bounds():
+    assert g.parse_selection("1 3 3 5", 4) == [1, 3]      # 5 out of range dropped
+    assert g.parse_selection("0,2", 3) == [0, 2]
+    assert g.parse_selection("x 1 -2", 3) == [1]          # garbage/negative dropped
+    assert g.parse_selection("", 3) == []
+
+def test_ensure_connected_returns_serial_on_success():
+    with patch.object(g, "run_adb", return_value=(0, "connected to 1.2.3.4:5555", "")):
+        assert g.ensure_connected("1.2.3.4") == "1.2.3.4:5555"
+
+def test_ensure_connected_returns_none_on_failure():
+    with patch.object(g, "run_adb", return_value=(1, "", "cannot connect")):
+        assert g.ensure_connected("1.2.3.4") is None
