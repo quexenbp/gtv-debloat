@@ -1,9 +1,12 @@
 import argparse
 import json
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+_IP_PORT = re.compile(r"^\d+\.\d+\.\d+\.\d+:\d+$")
 
 @dataclass
 class Pkg:
@@ -81,17 +84,56 @@ def list_packages(serial=None, flag=None):
             if line.startswith("package:")}
     return sorted(pkgs)
 
+def list_devices():
+    """Parse `adb devices` into [(serial, state), ...]."""
+    _, out, _ = run_adb(["devices"])
+    devs = []
+    for line in out.splitlines()[1:]:
+        if "\t" in line:
+            serial, state = line.split("\t", 1)
+            devs.append((serial.strip(), state.strip()))
+    return devs
+
+def resolve_serial(explicit=None):
+    """Pick which device adb should target.
+
+    Priority: explicit serial > the single online IP:port device > the single
+    online device > None (let adb use its default). Wireless debugging often
+    registers a duplicate mDNS entry (…_adb-tls-connect._tcp) alongside the
+    real IP:port one, so an IP:port device is preferred to disambiguate.
+    """
+    if explicit:
+        return explicit
+    online = [s for s, st in list_devices() if st == "device"]
+    ipish = [s for s in online if _IP_PORT.match(s)]
+    if len(ipish) == 1:
+        return ipish[0]
+    if len(online) == 1:
+        return online[0]
+    return None
+
+def _run_pm(action, pkg, serial):
+    args = ["shell", "pm", action]
+    if action == "disable-user":
+        args += ["--user", "0"]
+    args.append(pkg)
+    rc, out, err = run_adb(args, serial=serial)
+    if rc != 0 and "offline" in (out + err).lower():
+        # ponytail: one blind reconnect + retry. Rotating wireless-debugging
+        # ports can still require a manual re-pair, which no retry can fix.
+        run_adb(["reconnect", "offline"])
+        if serial:
+            run_adb(["connect", serial])
+        rc, out, err = run_adb(args, serial=serial)
+    return rc
+
 def _apply(action, packages, serial):
     disabled, skipped = [], []
     for pkg in packages:
         if action == "disable-user" and is_protected(pkg):
             skipped.append(pkg)
             continue
-        args = ["shell", "pm", action]
-        if action == "disable-user":
-            args += ["--user", "0"]
-        args.append(pkg)
-        rc, _, _ = run_adb(args, serial=serial)
+        rc = _run_pm(action, pkg, serial)
         (disabled if rc == 0 else skipped).append(pkg)
     return {"disabled": disabled, "skipped": skipped}
 
@@ -128,6 +170,8 @@ def _print_menu(pkgs):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Reversibly disable Google TV bloatware over ADB.")
     parser.add_argument("--ip", help="TV IP for network ADB (adb connect IP:5555)")
+    parser.add_argument("--serial", help="exact adb device serial to target "
+                        "(e.g. 192.168.0.21:34793); use with wireless debugging")
     parser.add_argument("--undo", action="store_true", help="re-enable currently disabled packages")
     parser.add_argument("--catalog", default="packages.json", help="path to bloat catalog")
     args = parser.parse_args(argv)
@@ -137,12 +181,17 @@ def main(argv=None):
               "https://developer.android.com/tools/releases/platform-tools")
         return 1
 
-    serial = ensure_connected(args.ip)
-    if args.ip and serial is None:
-        print("Could not connect. On the TV enable Developer options + "
-              "Network debugging (Settings > System > About > tap Build 7x, "
-              "then Settings > System > Developer options).")
-        return 1
+    serial = args.serial
+    if serial is None and args.ip:
+        serial = ensure_connected(args.ip)
+        if serial is None:
+            print("Could not connect. On the TV enable Developer options + "
+                  "Network debugging (Settings > System > About > tap Build 7x, "
+                  "then Settings > System > Developer options). For Android 11+ "
+                  "Wireless debugging, pair manually and pass --serial IP:PORT.")
+            return 1
+    if serial is None:
+        serial = resolve_serial()
 
     if args.undo:
         disabled = list_packages(serial=serial, flag="-d")
@@ -175,7 +224,12 @@ def main(argv=None):
             return 0
     res = disable_packages([p.package for p in targets], serial=serial)
     print(f"Disabled {len(res['disabled'])}, skipped {len(res['skipped'])}.")
-    print("Undo anytime: python gtv_debloat.py --undo" + (f" --ip {args.ip}" if args.ip else ""))
+    hint = "Undo anytime: python gtv_debloat.py --undo"
+    if args.serial:
+        hint += f" --serial {args.serial}"
+    elif args.ip:
+        hint += f" --ip {args.ip}"
+    print(hint)
     return 0
 
 if __name__ == "__main__":

@@ -76,6 +76,7 @@ def test_main_unknown_pkg_aborts_without_yes(tmp_path):
     inputs = iter(["0", "no"])  # select index 0, then decline the yes-gate
     with patch.object(g, "adb_available", return_value=True), \
          patch.object(g, "ensure_connected", return_value=None), \
+         patch.object(g, "resolve_serial", return_value=None), \
          patch.object(g, "list_packages", return_value=["com.some.app"]), \
          patch.object(g, "disable_packages") as mock_disable, \
          patch("builtins.input", lambda _="": next(inputs)):
@@ -89,6 +90,7 @@ def test_main_unknown_pkg_proceeds_with_yes(tmp_path):
     inputs = iter(["0", "yes"])
     with patch.object(g, "adb_available", return_value=True), \
          patch.object(g, "ensure_connected", return_value=None), \
+         patch.object(g, "resolve_serial", return_value=None), \
          patch.object(g, "list_packages", return_value=["com.some.app"]), \
          patch.object(g, "disable_packages", return_value={"disabled": ["com.some.app"], "skipped": []}) as mock_disable, \
          patch("builtins.input", lambda _="": next(inputs)):
@@ -125,3 +127,48 @@ def test_shipped_catalog_is_valid_and_not_protected():
     assert catalog, "catalog is empty"
     leaked = [p for p in catalog if g.is_protected(p)]
     assert leaked == [], f"catalog lists protected packages: {leaked}"
+
+
+def test_list_devices_parses_state():
+    out = ("List of devices attached\n"
+           "192.168.0.21:34793\tdevice\n"
+           "192.168.0.21:41311\toffline\n"
+           "adb-XYZ._adb-tls-connect._tcp\tdevice\n")
+    with patch.object(g, "run_adb", return_value=(0, out, "")):
+        assert g.list_devices() == [
+            ("192.168.0.21:34793", "device"),
+            ("192.168.0.21:41311", "offline"),
+            ("adb-XYZ._adb-tls-connect._tcp", "device"),
+        ]
+
+def test_resolve_serial_explicit_wins():
+    assert g.resolve_serial("1.2.3.4:5555") == "1.2.3.4:5555"
+
+def test_resolve_serial_prefers_single_ip_over_mdns_duplicate():
+    # wireless debugging: one IP:port + one mDNS entry, both "device"
+    out = ("List of devices attached\n"
+           "192.168.0.21:34793\tdevice\n"
+           "adb-XYZ._adb-tls-connect._tcp\tdevice\n"
+           "192.168.0.21:41311\toffline\n")
+    with patch.object(g, "run_adb", return_value=(0, out, "")):
+        assert g.resolve_serial() == "192.168.0.21:34793"
+
+def test_resolve_serial_none_when_ambiguous():
+    out = ("List of devices attached\n"
+           "192.168.0.21:34793\tdevice\n"
+           "192.168.0.99:5555\tdevice\n")
+    with patch.object(g, "run_adb", return_value=(0, out, "")):
+        assert g.resolve_serial() is None
+
+def test_run_pm_reconnects_and_retries_on_offline():
+    calls = []
+    def fake(args, serial=None):
+        calls.append(args)
+        # first pm call: offline; reconnect+connect: ok; retry pm: ok
+        if args[:2] == ["shell", "pm"] and len([c for c in calls if c[:2]==["shell","pm"]]) == 1:
+            return (1, "", "adb.exe: device offline")
+        return (0, "", "")
+    with patch.object(g, "run_adb", side_effect=fake):
+        res = g.disable_packages(["com.some.app"], serial="1.2.3.4:34793")
+    assert res["disabled"] == ["com.some.app"]  # retry succeeded
+    assert ["reconnect", "offline"] in calls   # reconnect attempted

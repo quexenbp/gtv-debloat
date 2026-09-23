@@ -52,11 +52,27 @@ adb pair 192.168.0.21:PAIRING_PORT      # enter the 6-digit code when prompted
 adb connect 192.168.0.21:CONNECT_PORT
 adb devices                              # confirm it shows "device" (not "offline")
 
-python gtv_debloat.py                     # no --ip: acts on the connected device
+python gtv_debloat.py                     # auto-targets the connected device
 ```
 
-If the first `adb pair` prints `protocol fault (couldn't read status message)`, the
-daemon had just started—simply re-run it with a fresh pairing code.
+`gtv_debloat.py` with no `--ip`/`--serial` auto-picks the single connected
+device, ignoring the duplicate `…_adb-tls-connect._tcp` mDNS entry that wireless
+debugging registers. If auto-selection is ambiguous (several devices), pass the
+exact serial from `adb devices`:
+
+```bash
+python gtv_debloat.py --serial 192.168.0.21:34793
+```
+
+Tips for flaky wireless-debugging connections (common on some MediaTek TVs):
+
+- Keep the **Wireless debugging** screen open on the TV while working—leaving it
+  can drop the connection to `offline`.
+- The connect port rotates on reconnect; read the current one from that screen.
+- If the first `adb pair` prints `protocol fault (couldn't read status message)`,
+  the daemon had just started—re-run with a fresh pairing code, ideally inline:
+  `adb pair IP:PORT CODE`.
+- The tool retries once with a reconnect if a disable/enable hits `offline`.
 
 ## Usage
 
