@@ -16,9 +16,21 @@ WHITELIST_PREFIXES = (
     "com.google.android.gsf",
     "com.google.android.gms",
     "com.google.android.tvlauncher",
+    "com.google.android.apps.tv.launcherx",  # Google TV home launcher (newer)
     "com.google.android.tv.frameworkpackagestubs",
     "android",
     "com.google.android.packageinstaller",
+    "com.google.android.permissioncontroller",  # runtime permission UI
+    "com.google.android.overlay.",              # framework RRO overlays
+    "com.google.android.modulemetadata",        # mainline module metadata
+    "com.google.android.ext.services",          # framework ext services
+    "com.google.android.ext.shared",
+    "com.google.android.onetimeinitializer",
+    "com.google.android.inputmethod.latin",     # only keyboard: no text input = unusable
+    "com.google.android.webview",               # many apps/settings need WebView
+    "com.mediatek.tv.service",                  # panel/tuner core (covers .rro)
+    "com.mediatek.tvinput",                     # HDMI/tuner input source
+    "com.google.android.tv.settings",           # TV Settings app + its RRO overlays
 )
 
 def is_protected(package):

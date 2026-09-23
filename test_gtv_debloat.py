@@ -95,3 +95,33 @@ def test_main_unknown_pkg_proceeds_with_yes(tmp_path):
         rc = g.main(["--catalog", str(cat)])
     assert rc == 0
     mock_disable.assert_called_once()  # confirmed -> disable happened
+
+
+def test_critical_real_device_packages_are_protected():
+    # Regression guard from real Arcelik/MediaTek Google TV testing:
+    # disabling any of these can brick or make the TV unusable, so they must
+    # never appear as selectable (and thus never be disable-able).
+    critical = [
+        "com.google.android.apps.tv.launcherx",       # home launcher
+        "com.google.android.permissioncontroller",
+        "com.google.android.overlay.googlewebview",   # any framework RRO overlay
+        "com.google.android.modulemetadata",
+        "com.google.android.inputmethod.latin",       # only keyboard
+        "com.google.android.webview",
+        "com.google.android.ext.services",
+        "com.mediatek.tv.service",
+        "com.mediatek.tv.service.rro",
+        "com.mediatek.tvinput",
+    ]
+    sel = g.selectable_packages(critical, {})
+    assert sel == [], f"critical packages leaked into selectable: {[p.package for p in sel]}"
+
+
+def test_shipped_catalog_is_valid_and_not_protected():
+    # The real packages.json must load and must not list any package that the
+    # whitelist protects (a protected package in the catalog is dead weight and
+    # a sign the two lists disagree).
+    catalog = g.load_catalog("packages.json")
+    assert catalog, "catalog is empty"
+    leaked = [p for p in catalog if g.is_protected(p)]
+    assert leaked == [], f"catalog lists protected packages: {leaked}"

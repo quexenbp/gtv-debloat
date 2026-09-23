@@ -22,15 +22,41 @@ Follow these steps to enable debugging on your Google TV:
    - Find and tap **"Android TV OS build"** (or just **"Build"**) **7 times** in quick succession
    - You should see a notification: "You are now a developer"
 
+   > The build entry's label varies by device. On some Arçelik / MediaTek sets it
+   > is shown as **"Android TV OS build"** (Turkish: **"Android TV OS derlemesi"**)
+   > rather than a plain "Build number."
+
 2. **Enable USB and Network Debugging:**
    - Return to **Settings** > **System** > **Developer options**
    - Enable **USB debugging**
-   - Enable **Network debugging**
+   - Enable **Network debugging** (if present)
 
 3. **Find Your TV's IP Address:**
    - Go to **Settings** > **Network & Internet** > **Wi-Fi** (or **Ethernet**, depending on your connection)
    - Look for your TV's IP address (usually shown as "IP address" or similar, e.g., `192.168.1.42`)
    - Note this IP—you'll need it to run gtv-debloat
+
+### Android 11+ / "Wireless debugging" (no fixed port)
+
+Newer Google TV builds replace "Network debugging" with **Wireless debugging**, which
+uses a random port and a one-time pairing step, so `--ip` (which assumes port `5555`)
+won't connect directly. Pair once with `adb`, then run the tool **without** `--ip`
+(it uses the already-connected device):
+
+```bash
+adb start-server
+# On the TV: Developer options > Wireless debugging > "Pair device with pairing code"
+# It shows an IP:PORT and a 6-digit code. Use that pairing IP:PORT here:
+adb pair 192.168.0.21:PAIRING_PORT      # enter the 6-digit code when prompted
+# Then connect using the IP:PORT shown on the main Wireless debugging screen:
+adb connect 192.168.0.21:CONNECT_PORT
+adb devices                              # confirm it shows "device" (not "offline")
+
+python gtv_debloat.py                     # no --ip: acts on the connected device
+```
+
+If the first `adb pair` prints `protocol fault (couldn't read status message)`, the
+daemon had just started—simply re-run it with a fresh pairing code.
 
 ## Usage
 
