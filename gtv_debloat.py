@@ -44,7 +44,7 @@ def is_protected(package):
 def load_catalog(path="packages.json"):
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     return {e["package"]: {"description": e.get("description", ""),
-                           "risk": e.get("risk", "safe")}
+                           "risk": e.get("risk", "caution")}
             for e in data.get("packages", [])}
 
 def selectable_packages(installed, catalog):

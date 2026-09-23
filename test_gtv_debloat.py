@@ -41,6 +41,11 @@ def test_load_catalog_reads_json(tmp_path):
     cat = g.load_catalog(f)
     assert cat["com.x"] == {"description": "d", "risk": "caution"}
 
+def test_load_catalog_defaults_missing_risk_to_caution(tmp_path):
+    f = tmp_path / "packages.json"
+    f.write_text('{"packages":[{"package":"com.x","description":"d"}]}')
+    assert g.load_catalog(f)["com.x"]["risk"] == "caution"
+
 def test_disable_refuses_protected_and_reports_summary():
     calls = []
     def fake_run(args, serial=None):
