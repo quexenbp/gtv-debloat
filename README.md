@@ -2,6 +2,28 @@
 
 A lightweight, reversible Google TV bloatware disabler. Safely remove unwanted pre-installed apps without root access, using nothing but ADB and the native `pm disable-user` command. Everything is reversible—no uninstalls, no file system tampering, no risk of soft-bricking your TV.
 
+## Quick start
+
+1. Install [Python 3.9+](https://www.python.org/downloads/) and [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools) (`adb`).
+2. Enable ADB on the TV (see [Enable ADB on Google TV](#enable-adb-on-google-tv)).
+3. Connect and clean up:
+
+   - **Windows:** double-click `run.bat` (it finds Python for you), or run the commands below.
+   - **Guided pairing (Android 11+ Wireless debugging):**
+     ```bash
+     python gtv_debloat.py --pair
+     ```
+     It walks you through pairing + connecting, then shows the menu.
+   - **Pick packages:** type the numbers of the apps to disable.
+   - **Bulk clean:** disable every catalogued-safe app at once:
+     ```bash
+     python gtv_debloat.py --all-safe
+     ```
+   - **Undo anything:**
+     ```bash
+     python gtv_debloat.py --undo
+     ```
+
 ## Requirements
 
 - **Python 3.9 or later**
@@ -40,8 +62,20 @@ Follow these steps to enable debugging on your Google TV:
 
 Newer Google TV builds replace "Network debugging" with **Wireless debugging**, which
 uses a random port and a one-time pairing step, so `--ip` (which assumes port `5555`)
-won't connect directly. Pair once with `adb`, then run the tool **without** `--ip`
-(it uses the already-connected device):
+won't connect directly.
+
+**Easiest:** let the tool guide you through pairing and connecting:
+
+```bash
+python gtv_debloat.py --pair
+```
+
+It prompts for the pairing `IP:PORT` + code (from the TV's "Pair device with
+pairing code" popup), then the connect `IP:PORT` (from the main Wireless
+debugging screen), and continues into the menu on success.
+
+Or do it manually with `adb`, then run the tool **without** `--ip` (it uses the
+already-connected device):
 
 ```bash
 adb start-server
@@ -75,6 +109,21 @@ Tips for flaky wireless-debugging connections (common on some MediaTek TVs):
 - The tool retries once with a reconnect if a disable/enable hits `offline`.
 
 ## Usage
+
+### Options
+
+| Flag | What it does |
+| --- | --- |
+| `--pair` | Guided Wireless-debugging pairing wizard, then the disable menu |
+| `--ip IP` | Connect via network ADB at `IP:5555` (older builds) |
+| `--serial IP:PORT` | Target an exact device (use with Wireless debugging) |
+| `--all-safe` | Disable every catalogued-`safe` package, no menu |
+| `--undo` | Re-enable currently disabled packages |
+| `--catalog PATH` | Use a different `packages.json` |
+| `--version` | Print version and exit |
+
+On Windows you can double-click `run.bat` instead of typing the Python path; it
+forwards any arguments (e.g. run it from a terminal as `run.bat --all-safe`).
 
 ### Interactive Disable Menu
 
