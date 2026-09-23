@@ -1,6 +1,11 @@
 from unittest.mock import patch
 import gtv_debloat as g
 
+def test_version_prints_and_exits(capsys):
+    rc = g.main(["--version"])
+    assert rc == 0
+    assert "0.1.0" in capsys.readouterr().out
+
 def test_list_packages_parses_and_sorts():
     fake = (0, "package:com.b\npackage:com.a\npackage:com.a\n", "")
     with patch.object(g, "run_adb", return_value=fake):

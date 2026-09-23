@@ -6,6 +6,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+__version__ = "0.1.0"
+
 _IP_PORT = re.compile(r"^\d+\.\d+\.\d+\.\d+:\d+$")
 
 @dataclass
@@ -169,12 +171,17 @@ def _print_menu(pkgs):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Reversibly disable Google TV bloatware over ADB.")
+    parser.add_argument("--version", action="store_true", help="print version and exit")
     parser.add_argument("--ip", help="TV IP for network ADB (adb connect IP:5555)")
     parser.add_argument("--serial", help="exact adb device serial to target "
                         "(e.g. 192.168.0.21:34793); use with wireless debugging")
     parser.add_argument("--undo", action="store_true", help="re-enable currently disabled packages")
     parser.add_argument("--catalog", default="packages.json", help="path to bloat catalog")
     args = parser.parse_args(argv)
+
+    if args.version:
+        print(f"gtv-debloat {__version__}")
+        return 0
 
     if not adb_available():
         print("adb not found. Install Android platform-tools: "
