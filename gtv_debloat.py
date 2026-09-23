@@ -64,3 +64,23 @@ def list_packages(serial=None, flag=None):
             for line in out.splitlines()
             if line.startswith("package:")}
     return sorted(pkgs)
+
+def _apply(action, packages, serial):
+    disabled, skipped = [], []
+    for pkg in packages:
+        if action == "disable-user" and is_protected(pkg):
+            skipped.append(pkg)
+            continue
+        args = ["shell", "pm", action]
+        if action == "disable-user":
+            args += ["--user", "0"]
+        args.append(pkg)
+        rc, _, _ = run_adb(args, serial=serial)
+        (disabled if rc == 0 else skipped).append(pkg)
+    return {"disabled": disabled, "skipped": skipped}
+
+def disable_packages(packages, serial=None):
+    return _apply("disable-user", packages, serial)
+
+def enable_packages(packages, serial=None):
+    return _apply("enable", packages, serial)

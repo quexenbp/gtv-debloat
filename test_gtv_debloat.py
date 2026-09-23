@@ -35,3 +35,23 @@ def test_load_catalog_reads_json(tmp_path):
     f.write_text('{"packages":[{"package":"com.x","description":"d","risk":"caution"}]}')
     cat = g.load_catalog(f)
     assert cat["com.x"] == {"description": "d", "risk": "caution"}
+
+def test_disable_refuses_protected_and_reports_summary():
+    calls = []
+    def fake_run(args, serial=None):
+        calls.append(args)
+        return (0, "", "")
+    with patch.object(g, "run_adb", side_effect=fake_run):
+        res = g.disable_packages(["com.arcelik.bloat", "com.android.systemui"])
+    assert res["disabled"] == ["com.arcelik.bloat"]
+    assert res["skipped"] == ["com.android.systemui"]
+    # protected package must not have hit adb
+    assert all("com.android.systemui" not in a for a in calls)
+
+def test_disable_marks_failed_as_skipped():
+    def fake_run(args, serial=None):
+        return (1, "", "Failure")
+    with patch.object(g, "run_adb", side_effect=fake_run):
+        res = g.disable_packages(["com.x"])
+    assert res["disabled"] == []
+    assert res["skipped"] == ["com.x"]
