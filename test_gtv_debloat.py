@@ -177,3 +177,22 @@ def test_run_pm_reconnects_and_retries_on_offline():
         res = g.disable_packages(["com.some.app"], serial="1.2.3.4:34793")
     assert res["disabled"] == ["com.some.app"]  # retry succeeded
     assert ["reconnect", "offline"] in calls   # reconnect attempted
+
+def test_safe_targets_only_catalogued_safe_and_unprotected():
+    installed = ["com.a", "com.b", "com.c", "com.android.systemui"]
+    catalog = {"com.a": {"description": "", "risk": "safe"},
+               "com.b": {"description": "", "risk": "caution"},
+               "com.android.systemui": {"description": "", "risk": "safe"}}
+    assert g.safe_targets(installed, catalog) == ["com.a"]
+
+def test_main_all_safe_disables_safe_set(tmp_path):
+    cat = tmp_path / "packages.json"
+    cat.write_text('{"packages":[{"package":"com.a","description":"","risk":"safe"},'
+                   '{"package":"com.b","description":"","risk":"caution"}]}')
+    with patch.object(g, "adb_available", return_value=True), \
+         patch.object(g, "resolve_serial", return_value="1.2.3.4:5555"), \
+         patch.object(g, "list_packages", return_value=["com.a", "com.b"]), \
+         patch.object(g, "disable_packages", return_value={"disabled": ["com.a"], "skipped": []}) as md:
+        rc = g.main(["--all-safe", "--catalog", str(cat)])
+    assert rc == 0
+    md.assert_called_once_with(["com.a"], serial="1.2.3.4:5555")

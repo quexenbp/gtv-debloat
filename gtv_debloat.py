@@ -59,6 +59,11 @@ def selectable_packages(installed, catalog):
             out.append(Pkg(pkg, "", "unknown"))
     return out
 
+def safe_targets(installed, catalog):
+    return [pkg for pkg in installed
+            if not is_protected(pkg)
+            and catalog.get(pkg, {}).get("risk") == "safe"]
+
 def adb_available() -> bool:
     try:
         subprocess.run(["adb", "version"], capture_output=True, text=True)
@@ -176,6 +181,7 @@ def main(argv=None):
     parser.add_argument("--serial", help="exact adb device serial to target "
                         "(e.g. 192.168.0.21:34793); use with wireless debugging")
     parser.add_argument("--undo", action="store_true", help="re-enable currently disabled packages")
+    parser.add_argument("--all-safe", action="store_true", help="disable every catalogued SAFE package")
     parser.add_argument("--catalog", default="packages.json", help="path to bloat catalog")
     args = parser.parse_args(argv)
 
@@ -212,6 +218,18 @@ def main(argv=None):
         targets = disabled if not sel else [disabled[i] for i in sel]
         res = enable_packages(targets, serial=serial)
         print(f"Re-enabled {len(res['disabled'])}, skipped {len(res['skipped'])}.")
+        return 0
+
+    if args.all_safe:
+        catalog = load_catalog(args.catalog)
+        installed = list_packages(serial=serial)
+        targets = safe_targets(installed, catalog)
+        if not targets:
+            print("No catalogued SAFE packages found on device.")
+            return 0
+        print("Disabling SAFE packages:", ", ".join(targets))
+        res = disable_packages(targets, serial=serial)
+        print(f"Disabled {len(res['disabled'])}, skipped {len(res['skipped'])}.")
         return 0
 
     catalog = load_catalog(args.catalog)
