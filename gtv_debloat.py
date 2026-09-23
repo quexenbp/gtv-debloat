@@ -79,6 +79,13 @@ def run_adb(args, serial=None):
     p = subprocess.run(cmd, capture_output=True, text=True)
     return p.returncode, p.stdout, p.stderr
 
+def pair_device(pair_endpoint, code):
+    rc, out, err = run_adb(["pair", pair_endpoint, code])
+    if "protocol fault" in (out + err).lower():
+        run_adb(["start-server"])
+        rc, out, err = run_adb(["pair", pair_endpoint, code])
+    return "successfully paired" in (out + err).lower()
+
 def list_packages(serial=None, flag=None):
     args = ["shell", "pm", "list", "packages"]
     if flag:
@@ -182,6 +189,7 @@ def main(argv=None):
                         "(e.g. 192.168.0.21:34793); use with wireless debugging")
     parser.add_argument("--undo", action="store_true", help="re-enable currently disabled packages")
     parser.add_argument("--all-safe", action="store_true", help="disable every catalogued SAFE package")
+    parser.add_argument("--pair", action="store_true", help="guided Wireless debugging pairing")
     parser.add_argument("--catalog", default="packages.json", help="path to bloat catalog")
     args = parser.parse_args(argv)
 
@@ -193,6 +201,23 @@ def main(argv=None):
         print("adb not found. Install Android platform-tools: "
               "https://developer.android.com/tools/releases/platform-tools")
         return 1
+
+    if args.pair:
+        print("On the TV: Developer options > Wireless debugging > "
+              "'Pair device with pairing code'.")
+        pe = input("Pairing IP:PORT (from the pairing popup): ").strip()
+        code = input("6-digit pairing code: ").strip()
+        if not pair_device(pe, code):
+            print("Pairing failed. Re-open the popup for a fresh code and retry.")
+            return 1
+        print("Paired.")
+        ce = input("Connect IP:PORT (from the main Wireless debugging screen): ").strip()
+        rc, out, _ = run_adb(["connect", ce])
+        if not (rc == 0 and "connected" in out.lower()):
+            print("Connect failed. Check the port on the TV screen and retry.")
+            return 1
+        print("Connected. Continuing...")
+        args.serial = args.serial or ce
 
     serial = args.serial
     if serial is None and args.ip:

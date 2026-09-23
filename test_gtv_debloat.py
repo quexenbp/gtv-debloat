@@ -196,3 +196,20 @@ def test_main_all_safe_disables_safe_set(tmp_path):
         rc = g.main(["--all-safe", "--catalog", str(cat)])
     assert rc == 0
     md.assert_called_once_with(["com.a"], serial="1.2.3.4:5555")
+
+
+def test_pair_device_success():
+    with patch.object(g, "run_adb", return_value=(0, "Successfully paired to 1.2.3.4:5", "")) as m:
+        assert g.pair_device("1.2.3.4:5", "123456") is True
+        m.assert_called_once_with(["pair", "1.2.3.4:5", "123456"])
+
+def test_pair_device_retries_on_protocol_fault():
+    seq = iter([(1, "", "protocol fault (couldn't read status message)"),
+                (0, "", ""),                       # start-server
+                (0, "Successfully paired", "")])    # retry pair
+    with patch.object(g, "run_adb", side_effect=lambda *a, **k: next(seq)):
+        assert g.pair_device("1.2.3.4:5", "123456") is True
+
+def test_pair_device_failure():
+    with patch.object(g, "run_adb", return_value=(1, "", "failed")):
+        assert g.pair_device("1.2.3.4:5", "000000") is False
