@@ -1,0 +1,10 @@
+{
+  "packages": [
+    {"package": "com.google.android.youtube.tvkids", "description": "YouTube Kids for TV", "risk": "safe"},
+    {"package": "com.google.android.videos", "description": "Google TV / Play Movies", "risk": "caution"},
+    {"package": "com.google.android.play.games", "description": "Google Play Games", "risk": "safe"},
+    {"package": "com.google.android.music", "description": "Play Music (legacy)", "risk": "safe"},
+    {"package": "com.netflix.ninja", "description": "Netflix (preinstalled)", "risk": "caution"},
+    {"package": "com.amazon.amazonvideo.livingroom", "description": "Amazon Prime Video (preinstalled)", "risk": "caution"}
+  ]
+}

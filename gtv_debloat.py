@@ -1,4 +1,44 @@
+import json
 import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+
+@dataclass
+class Pkg:
+    package: str
+    description: str
+    risk: str  # "safe" | "caution" | "unknown"
+
+WHITELIST_PREFIXES = (
+    "com.android.",
+    "com.google.android.gsf",
+    "com.google.android.gms",
+    "com.google.android.tvlauncher",
+    "com.google.android.tv.frameworkpackagestubs",
+    "android",
+    "com.google.android.packageinstaller",
+)
+
+def is_protected(package):
+    return any(package == p or package.startswith(p) for p in WHITELIST_PREFIXES)
+
+def load_catalog(path="packages.json"):
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    return {e["package"]: {"description": e.get("description", ""),
+                           "risk": e.get("risk", "safe")}
+            for e in data.get("packages", [])}
+
+def selectable_packages(installed, catalog):
+    out = []
+    for pkg in installed:
+        if is_protected(pkg):
+            continue
+        info = catalog.get(pkg)
+        if info:
+            out.append(Pkg(pkg, info["description"], info["risk"]))
+        else:
+            out.append(Pkg(pkg, "", "unknown"))
+    return out
 
 def adb_available() -> bool:
     try:
